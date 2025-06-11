@@ -1,0 +1,103 @@
+FROM haveagitgat/tdarr
+
+ENV \
+    HANDBRAKE=1.9.2
+
+RUN apt-get update &&  \
+        apt-get install -y \
+            software-properties-common \
+            git \
+            trash-cli && \
+
+    curl -s https://deb.nodesource.com/setup_18.x | bash && apt install nodejs -y && node -v && \
+    apt-get update && \
+    apt-get install -y curl unzip wget comskip \
+        # for apprise
+        python3-pip && \
+        pip3 install apprise && \
+
+    # HandBrake dependencies
+    apt-get install -y \
+        autoconf \
+        automake \
+        build-essential \
+        cmake \
+        git \
+        libass-dev \
+        libass9 \
+        libbz2-dev \
+        libfontconfig-dev \
+        libfreetype-dev \
+        libfribidi-dev \
+        libharfbuzz-dev \
+        libjansson-dev \
+        liblzma-dev \
+        libmp3lame-dev \
+        libnuma-dev \
+        libogg-dev \
+        libopus-dev \
+        libsamplerate0-dev \
+        libspeex-dev \
+        libtheora-dev \
+        libtool \
+        libtool-bin \
+        libturbojpeg0-dev \
+        libvorbis-dev \
+        libx264-dev \
+        libxml2-dev \
+        libvpx-dev \
+        m4 \
+        make \
+        meson \
+        nasm \
+        ninja-build \
+        patch \
+        pkg-config \
+        tar \
+        zlib1g-dev \
+        # QSV dependencies
+        libva-dev \
+        libdrm-dev \
+        python2 \
+        python3 && \
+
+    rm -rdf /tmp/handbrake && \
+    mkdir -p /tmp/handbrake && \
+    git clone \
+        --branch ${HANDBRAKE} \
+        --depth 1 https://github.com/HandBrake/HandBrake.git \
+        /tmp/handbrake && \
+    cd /tmp/handbrake && \
+    ./configure \
+        --enable-nvenc \
+        --enable-qsv \
+        --enable-x265 \
+        --disable-gtk \
+        --launch-jobs=14 \
+        --launch \
+        --force && \
+    make --directory=build install && \
+    cp /tmp/handbrake/build/HandBrakeCLI /usr/local/bin/HandBrakeCLI && \
+    rm -rdf /tmp/handbrake/ && \
+
+    trash-empty && \
+        if uname -m | grep -q x86; then \
+            apt-get clean && \
+            apt purge -y \
+                g++-9 \
+                gcc-9 \
+                # libc6-dev \
+                libstdc++-9-dev \
+                cpp-9 \
+                libgcc-9-dev \
+                libstd-rust-dev \
+                # libllvm12 \
+                libicu-dev \
+                cargo \
+                libstd-rust-1.65 \
+                libstd-rust-dev \
+                git \
+                cmake \
+                python3-pip ; \
+        fi && \
+    apt autoremove -y

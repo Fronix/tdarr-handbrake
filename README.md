@@ -14,6 +14,11 @@ make build-server
 make build-node
 ```
 
+One line
+```bash
+git clone https://github.com/Fronix/tdarr-handbrake.git && cd tdarr-handbrake && make build-server && make build-node
+```
+
 In your compose files update the images for server and node
 
 ```yaml

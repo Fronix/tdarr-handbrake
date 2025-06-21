@@ -3,65 +3,54 @@ FROM haveagitgat/tdarr_node
 ENV \
     HANDBRAKE=1.9.2
 
-RUN apt-get update &&  \
-        apt-get install -y \
-            software-properties-common \
-            git \
-            trash-cli && \
-
-    curl -s https://deb.nodesource.com/setup_18.x | bash && apt install nodejs -y && node -v && \
-    apt-get update && \
-    apt-get install -y curl unzip wget comskip \
-        # for apprise
-        python3-pip && \
-        pip3 install apprise && \
-
-    # HandBrake dependencies
+# General dependencies
+RUN apt-get update && \
     apt-get install -y \
-        autoconf \
-        automake \
+        software-properties-common \
+        git \
+        trash-cli \
         build-essential \
         cmake \
-        git \
-        libass-dev \
-        libass9 \
-        libbz2-dev \
-        libfontconfig-dev \
-        libfreetype-dev \
-        libfribidi-dev \
-        libharfbuzz-dev \
-        libjansson-dev \
-        liblzma-dev \
-        libmp3lame-dev \
-        libnuma-dev \
-        libogg-dev \
-        libopus-dev \
-        libsamplerate0-dev \
-        libspeex-dev \
-        libtheora-dev \
-        libtool \
-        libtool-bin \
-        libturbojpeg0-dev \
-        libvorbis-dev \
-        libx264-dev \
-        libxml2-dev \
-        libvpx-dev \
-        m4 \
-        make \
-        meson \
-        nasm \
-        ninja-build \
-        patch \
         pkg-config \
-        tar \
-        zlib1g-dev \
-        # QSV dependencies
-        libva-dev \
-        libdrm-dev \
-        python2 \
-        python3 && \
+        libfontconfig1-dev \
+        curl unzip wget \
+        python3-pip && \
+    add-apt-repository universe && \
+    apt-get update && \
+    curl -s https://deb.nodesource.com/setup_18.x | bash && \
+    apt install -y nodejs && node -v && \
+    apt-get install -y comskip && \
+    pip3 install apprise
 
-    rm -rdf /tmp/handbrake && \
+# --- Install Rust with rustup and build libdovi/dovi_tool ---
+RUN apt-get update && \
+    apt-get install -y \
+        clang \
+        llvm-dev \
+        libclang-dev \
+        cbindgen \
+        pkg-config \
+        libssl-dev && \
+    curl https://sh.rustup.rs -sSf | sh -s -- -y && \
+    . $HOME/.cargo/env && \
+    $HOME/.cargo/bin/cargo install cargo-c && \
+    mkdir -p /tmp/dovi && \
+    git clone --depth 1 https://github.com/quietvoid/dovi_tool.git /tmp/dovi && \
+    cd /tmp/dovi/dolby_vision && \
+    $HOME/.cargo/bin/cargo cinstall --prefix=/usr && \
+    cd /tmp/dovi && \
+    $HOME/.cargo/bin/cargo build --release && \
+    install -m755 target/release/dovi_tool /usr/local/bin/ && \
+    rm -rf /tmp/dovi
+
+# --- HandBrake dependencies ---
+COPY handbrakedeps.txt /tmp/handbrakedeps.txt
+
+RUN apt-get update && \
+    xargs -a /tmp/handbrakedeps.txt apt-get install -y
+
+# --- Install HandBrake ---
+RUN rm -rdf /tmp/handbrake && \
     mkdir -p /tmp/handbrake && \
     git clone \
         --branch ${HANDBRAKE} \
@@ -78,26 +67,32 @@ RUN apt-get update &&  \
         --force && \
     make --directory=build install && \
     cp /tmp/handbrake/build/HandBrakeCLI /usr/local/bin/HandBrakeCLI && \
-    rm -rdf /tmp/handbrake/ && \
+    rm -rdf /tmp/handbrake/
 
-    trash-empty && \
-        if uname -m | grep -q x86; then \
-            apt-get clean && \
-            apt purge -y \
-                g++-9 \
-                gcc-9 \
-                # libc6-dev \
-                libstdc++-9-dev \
-                cpp-9 \
-                libgcc-9-dev \
-                libstd-rust-dev \
-                # libllvm12 \
-                libicu-dev \
-                cargo \
-                libstd-rust-1.65 \
-                libstd-rust-dev \
-                git \
-                cmake \
-                python3-pip ; \
-        fi && \
-    apt autoremove -y
+# --- Cleanup ---
+RUN trash-empty && \
+    if uname -m | grep -q x86; then \
+        apt-get clean && \
+        apt purge -y \
+            g++-9 \
+            gcc-9 \
+            libstdc++-9-dev \
+            cpp-9 \
+            libgcc-9-dev \
+            libstd-rust-dev \
+            libicu-dev \
+            libstd-rust-1.65 \
+            libstd-rust-dev \
+            git \
+            cmake \
+            python3-pip \
+            build-essential \
+            pkg-config \
+            libssl-dev \
+            clang \
+            llvm-dev \
+            libclang-dev \
+            cbindgen ; \
+    fi && \
+    apt autoremove -y && \
+    rm -rf /var/lib/apt/lists/* /root/.cargo /root/.rustup
